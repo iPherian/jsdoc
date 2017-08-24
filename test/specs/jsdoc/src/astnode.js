@@ -4,7 +4,6 @@ describe('jsdoc/src/astNode', function() {
     var astBuilder = require('jsdoc/src/astbuilder');
     var astNode = require('jsdoc/src/astnode');
     var babylon = require('babylon');
-    var doop = require('jsdoc/util/doop');
     var env = require('jsdoc/env');
     var Syntax = require('jsdoc/src/syntax').Syntax;
 
@@ -19,7 +18,6 @@ describe('jsdoc/src/astNode', function() {
     var binaryExpression = parse('foo & foo;').expression;
     var experimentalObjectRestSpread = parse('var one = {...two, three: 4};').declarations[0].init;
     var functionDeclaration1 = parse('function foo() {}');
-    var functionDeclaration1a = parse('function bar() {}');
     var functionDeclaration2 = parse('function foo(bar) {}');
     var functionDeclaration3 = parse('function foo(bar, baz, qux) {}');
     var functionDeclaration4 = parse('function foo(...bar) {}');
@@ -30,15 +28,15 @@ describe('jsdoc/src/astNode', function() {
     var memberExpression = parse('foo.bar;').expression;
     var memberExpressionComputed1 = parse('foo["bar"];').expression;
     var memberExpressionComputed2 = parse('foo[\'bar\'];').expression;
-    var methodDefinition = parse('class Foo { bar() {} }').body.body[0];
+    var methodDefinition1 = parse('class Foo { bar() {} }').body.body[0];
+    var methodDefinition2 = parse('var foo = () => class { bar() {} };').declarations[0].init.body
+        .body[0];
     var propertyGet = parse('var foo = { get bar() {} };').declarations[0].init.properties[0];
     var propertyInit = parse('var foo = { bar: {} };').declarations[0].init.properties[0];
     var propertySet = parse('var foo = { set bar(a) {} };').declarations[0].init.properties[0];
     var thisExpression = parse('this;').expression;
     var unaryExpression1 = parse('+1;').expression;
     var unaryExpression2 = parse('+foo;').expression;
-    var variableDeclaration1 = parse('var foo = 1;');
-    var variableDeclaration2 = parse('var foo = 1, bar = 2;');
     var variableDeclarator1 = parse('var foo = 1;').declarations[0];
     var variableDeclarator2 = parse('var foo;').declarations[0];
 
@@ -86,7 +84,7 @@ describe('jsdoc/src/astNode', function() {
         var debugEnabled;
 
         beforeEach(function() {
-            debugEnabled = !!env.opts.debug;
+            debugEnabled = Boolean(env.opts.debug);
         });
 
         afterEach(function() {
@@ -171,7 +169,6 @@ describe('jsdoc/src/astNode', function() {
         });
 
         it('should provide a null parentId in debug mode for nodes with no parent', function() {
-            var descriptor;
             var node;
 
             env.opts.debug = true;
@@ -181,7 +178,6 @@ describe('jsdoc/src/astNode', function() {
         });
 
         it('should provide a non-null parentId in debug mode for nodes with a parent', function() {
-            var descriptor;
             var node;
             var parent;
 
@@ -230,18 +226,16 @@ describe('jsdoc/src/astNode', function() {
 
         it('should provide a null enclosingScopeId in debug mode for nodes with no enclosing scope',
             function() {
-            var descriptor;
-            var node;
+                var node;
 
-            env.opts.debug = true;
-            node = astNode.addNodeProperties({});
+                env.opts.debug = true;
+                node = astNode.addNodeProperties({});
 
-            expect(node.enclosingScopeId).toBe(null);
-        });
+                expect(node.enclosingScopeId).toBe(null);
+            });
 
         it('should provide a non-null enclosingScopeId in debug mode for nodes with an enclosing ' +
             'scope', function() {
-            var descriptor;
             var enclosingScope;
             var node;
 
@@ -504,7 +498,7 @@ describe('jsdoc/src/astNode', function() {
         });
 
         it('should recognize method definitions as functions', function() {
-            expect( astNode.isFunction(methodDefinition) ).toBe(true);
+            expect( astNode.isFunction(methodDefinition1) ).toBe(true);
         });
 
         it('should recognize arrow function expressions as functions', function() {
@@ -583,24 +577,36 @@ describe('jsdoc/src/astNode', function() {
             expect( astNode.nodeToValue(memberExpressionComputed2) ).toBe('foo[\'bar\']');
         });
 
+        // TODO: we can't test this here because JSDoc, not Babylon, adds the `parent` property to
+        // nodes. also, we currently return an empty string instead of `<anonymous>` in this case;
+        // see `module:jsdoc/src/astnode.nodeToValue` and the comment on `Syntax.MethodDefinition`
+        // for details
+        xit('should return `<anonymous>` for method definitions inside classes that were ' +
+            'returned by an arrow function expression', function() {
+            expect( astNode.nodeToValue(methodDefinition2) ).toBe('<anonymous>');
+        });
+
         it('should return "this" for this expressions', function() {
             expect( astNode.nodeToValue(thisExpression) ).toBe('this');
         });
 
         it('should return the operator and nodeToValue value for prefix unary expressions',
             function() {
-            expect( astNode.nodeToValue(unaryExpression1) ).toBe('+1');
-            expect( astNode.nodeToValue(unaryExpression2) ).toBe('+foo');
-        });
+                expect( astNode.nodeToValue(unaryExpression1) ).toBe('+1');
+                expect( astNode.nodeToValue(unaryExpression2) ).toBe('+foo');
+            });
 
         it('should throw an error for postfix unary expressions', function() {
             function postfixNodeToValue() {
                 // there's no valid source representation for this one, so we fake it
                 var unaryExpressionPostfix = (function() {
                     var node = parse('+1;').body[0].expression;
+
                     node.prefix = false;
+
                     return node;
                 })();
+
                 return astNode.nodeToValue(unaryExpressionPostfix);
             }
 
